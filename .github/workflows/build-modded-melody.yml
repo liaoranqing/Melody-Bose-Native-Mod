@@ -53,6 +53,14 @@ jobs:
         with:
           packages: 'build-tools;36.0.0'
 
+      - name: Add Android build tools to PATH
+        run: |
+          BUILD_TOOLS_DIR="$ANDROID_HOME/build-tools/36.0.0"
+          test -d "$BUILD_TOOLS_DIR"
+          test -x "$BUILD_TOOLS_DIR/apksigner"
+          echo "$BUILD_TOOLS_DIR" >> "$GITHUB_PATH"
+          echo "Using apksigner at $BUILD_TOOLS_DIR/apksigner"
+
       - name: Create test signing key
         run: |
           keytool -genkeypair -v -keystore test-release.jks \
@@ -62,10 +70,13 @@ jobs:
 
       - name: Sign modified APK
         run: |
-          apksigner sign --ks test-release.jks \
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" sign \
+            --ks test-release.jks \
             --ks-pass pass:android --key-pass pass:android \
             --out melody-bose-native-mod.apk melody-bose-unsigned.apk
-          apksigner verify --verbose melody-bose-native-mod.apk
+          "$APKSIGNER" verify --verbose melody-bose-native-mod.apk
 
       - name: Upload modified APK and decoded sources
         uses: actions/upload-artifact@v7
