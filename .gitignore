@@ -1,0 +1,6 @@
+build/
+*_decoded/
+*.idsig
+*.keystore
+*.jks
+.DS_Store

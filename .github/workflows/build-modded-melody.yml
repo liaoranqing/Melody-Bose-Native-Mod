@@ -1,0 +1,76 @@
+name: Build Modded Melody
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+env:
+  APK_INPUT: original/original-melody.apk
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Apktool
+        run: |
+          curl -L --fail --retry 3 -o apktool.jar \
+            https://github.com/iBotPeaches/Apktool/releases/download/v3.0.1/apktool_3.0.1.jar
+
+      - name: Check original APK
+        run: test -f "$APK_INPUT"
+
+      - name: Decode original Melody
+        run: java -jar apktool.jar d -f "$APK_INPUT" -o melody-decoded
+
+      - name: Verify native injection points
+        run: |
+          grep -R "EarphoneControlProvider\|BatteryProvider\|BluetoothService" melody-decoded/smali* | head -50
+
+      - name: Apply Bose patch
+        run: |
+          echo "Bose patch stage is intentionally gated until exact smali entry points are verified."
+          test -d patch
+          test -f patch/README.md
+
+      - name: Rebuild modded Melody
+        run: java -jar apktool.jar b melody-decoded -o melody-bose-unsigned.apk
+
+      - name: Install Android build tools
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'build-tools;36.0.0'
+
+      - name: Create test signing key
+        run: |
+          keytool -genkeypair -v -keystore test-release.jks \
+            -alias melody-test -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Melody Bose Native Mod, O=Local Test"
+
+      - name: Sign modified APK
+        run: |
+          apksigner sign --ks test-release.jks \
+            --ks-pass pass:android --key-pass pass:android \
+            --out melody-bose-native-mod.apk melody-bose-unsigned.apk
+          apksigner verify --verbose melody-bose-native-mod.apk
+
+      - name: Upload modified APK and decoded sources
+        uses: actions/upload-artifact@v7
+        with:
+          name: melody-bose-native-mod
+          path: |
+            melody-bose-native-mod.apk
+            melody-bose-unsigned.apk
