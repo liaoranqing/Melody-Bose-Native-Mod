@@ -35,9 +35,24 @@ jobs:
       - name: Decode original Melody
         run: java -jar apktool.jar d -f "$APK_INPUT" -o melody-decoded
 
+      - name: Inventory Melody UI and service entry points
+        run: |
+          {
+            echo "=== Manifest components ==="
+            grep -nE "activity|service|provider|receiver" melody-decoded/AndroidManifest.xml || true
+            echo
+            echo "=== Earphone-related classes and resources ==="
+            grep -RIlE "EarphoneControlProvider|BatteryProvider|BluetoothService|BtDevice|earphone|headphone|device_detail|noise_reduction" \
+              melody-decoded/smali* melody-decoded/res 2>/dev/null | sort | head -300 || true
+            echo
+            echo "=== Candidate Activity/Fragment declarations ==="
+            grep -RInE "extends (L?android/app/Activity;|L?androidx/fragment/app/Fragment;|L?android/app/Fragment;)" \
+              melody-decoded/smali* 2>/dev/null | head -300 || true
+          } | tee melody-analysis.txt
+
       - name: Verify native injection points
         run: |
-          grep -R "EarphoneControlProvider\|BatteryProvider\|BluetoothService" melody-decoded/smali* | head -50
+          grep -R "EarphoneControlProvider\|BatteryProvider\|BluetoothService" melody-decoded/smali* | head -50 || true
 
       - name: Apply Bose patch
         run: |
@@ -85,3 +100,5 @@ jobs:
           path: |
             melody-bose-native-mod.apk
             melody-bose-unsigned.apk
+            melody-analysis.txt
+            melody-decoded/
